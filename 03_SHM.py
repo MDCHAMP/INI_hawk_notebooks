@@ -199,7 +199,7 @@ plt.figure(figsize=(8, 5))
 for d in [0, 1, 2, 3]:
     ix = [l["dmg"] == d for l in labs]
     ss = [20*v["amp"] for i, v in zip(ix, labs) if i]
-    plt.scatter(PCS[ix, 0], PCS[ix, 1], color=f'{d}', label=ll[d], s=ss)
+    plt.scatter(PCS[ix, 0], PCS[ix, 1], color=f'C{d}', label=ll[d], s=ss)
 plt.legend(
     bbox_to_anchor=(0, 1.1, 1, 0),
     loc="upper left",
