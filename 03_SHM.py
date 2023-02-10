@@ -79,7 +79,20 @@ def RFP(H, w, n_modes, oob_terms=0):
     zetas = -np.real(roots_b) / wns
     return H_pred, wns, zetas
 
+def get_wns(ranges, ws, frf, oob=6):
+    wns = []
+    for (low, high), n in ranges:
+        idx = np.logical_and(ws > low, ws < high)
+        _, wn, _ = RFP(frf[idx], ws[idx], n, oob_terms=oob)
+        wns.extend(wn)
+    return np.array(wns)
 
+
+# %% load the data series
+
+# You should experiment with these:
+data_dir = r"C:\Users\me1mcz\Downloads\hawk_data"  # use your cached data if you have it downloaded
+DS = "RLE"  # damage case
 ranges = (
     ((5, 9), 1),
     ((12, 14), 1),
@@ -98,22 +111,6 @@ ranges = (
     ((135, 138), 1),
     ((154, 162), 1),
 )
-
-
-def get_wns(ws, frf):
-    wns = []
-    for (low, high), n in ranges:
-        idx = np.logical_and(ws > low, ws < high)
-        _, wn, _ = RFP(frf[idx], ws[idx], n, oob_terms=6)
-        wns.extend(wn)
-    return np.array(wns)
-
-
-# %% load the data series
-
-# You should experiment with these:
-data_dir = r"C:\Users\me1mcz\Downloads\hawk_data"  # use your cached data if you have it downloaded
-DS = "RLE"  # damage case
 
 # some meta data
 BR_AMP_levels = [0.4, 0.8, 1.2, 1.6, 2]
@@ -153,7 +150,7 @@ for series, runs in [
                     continue
                 # compute wns
                 frf = sensor_data["Frequency Response Function"]["Y_data"]["value"]
-                wns.append(get_wns(ws, frf))
+                wns.append(get_wns(ranges, ws, frf))
             # Store some metadata for visualisation
             dat = rep.split("_")
             num = int(dat[2]) - 1
