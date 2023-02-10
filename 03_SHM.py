@@ -20,9 +20,9 @@ Eploring the data: PCA
 Simple damage detection: Outlier analysis
 '''
 
-# %% PCA
+# %% PCA (Max tbc)
 
 
 
 
-# %% Outlier analysis (Matty)
+# %% Outlier analysis (Matty tbc)
