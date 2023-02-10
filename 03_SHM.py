@@ -10,7 +10,7 @@ sns.set_palette("Set2")
 
 # %% intro
 
-'''
+"""
 Intro to the SHM part
 
 What is an SHM?
@@ -18,9 +18,18 @@ What is an SHM?
 Eploring the data: PCA
 
 Simple damage detection: Outlier analysis
-'''
+"""
 
 # %% PCA
+
+"""
+Simple examination of the FRF data
+
+what we want to look at
+"""
+
+# %% reall the FRP for etracting wns from the FRFs
+
 
 # Hermitian transpose
 def HT(a):
@@ -100,21 +109,31 @@ def get_wns(ws, frf):
     return np.array(wns)
 
 
+# %% load the data series
+
+# You should experiment with these:
+data_dir = r"C:\Users\me1mcz\Downloads\hawk_data"  # use your cached data if you have it downloaded
+DS = "RLE"  # damage case
+
+# some meta data
 BR_AMP_levels = [0.4, 0.8, 1.2, 1.6, 2]
 DS_AMP_levels = [0.4, 1.2, 2, 0.4, 1.2, 2, 0.4, 1.2, 2]
 DS_DMG_levels = [1, 1, 1, 2, 2, 2, 3, 3, 3]
-all_series = [("BR_AR", np.arange(1, 6)), ("DS_CTE", np.arange(19, 28))]
 
+# Advanced data loading: extract FRFs only
 load_opts = {
     "data": "Frequency Response Function",
     "meta": False,
     "attrs": False,
     "compress_x_axis": True,
 }
-data_dir = r"C:\Users\me1mcz\Downloads\hawk_data"
-out = {}
 # loop through test series
-for series, runs in all_series:
+out = {}
+offset = {"CTE": 19, "RLE": 10, "TLE": 1}  # dont ask...
+for series, runs in [
+    ("BR_AR", np.arange(1, 6)),
+    (f"DS_{DS}", np.arange(offset[DS], offset["RLE"] + 9 + 1)),
+]:
     # loop through test runs
     for run in runs:
         run_data = get_hawk_data(
@@ -135,12 +154,11 @@ for series, runs in all_series:
                 # compute wns
                 frf = sensor_data["Frequency Response Function"]["Y_data"]["value"]
                 wns.append(get_wns(ws, frf))
-
             # Store some metadata for visualisation
             dat = rep.split("_")
             num = int(dat[2]) - 1
             if dat[0] == "DS":
-                num-=19#HACK
+                num -= offset[dat[1]]
                 dmg = DS_DMG_levels[num]
                 amp = DS_AMP_levels[num]
             elif dat[0] == "BR":
@@ -153,17 +171,18 @@ print("Sensors analysed per test: ", len(wns))
 wns, labs = zip(*(out.values()))
 wns = np.array(wns)
 
-# %% all the identified modes
+# %% PCA on all modes
 
 U, s, V = np.linalg.svd(wns, full_matrices=0)
 PCS = U @ np.diag(s)
 
+# Plotting the first 2 principal components
 ll = ["Baseline", "$M_a=256$", "$M_a=620$", "$M_a=898$"]
 plt.figure(figsize=(8, 5))
 for d in [0, 1, 2, 3]:
     ix = [l["dmg"] == d for l in labs]
-    ss = [20*v["amp"] for i, v in zip(ix, labs) if i]
-    plt.scatter(PCS[ix, 0], PCS[ix, 1], color=f'C{d}', label=ll[d], s=ss)
+    ss = [20 * v["amp"] for i, v in zip(ix, labs) if i]
+    plt.scatter(PCS[ix, 0], PCS[ix, 1], color=f"C{d}", label=ll[d], s=ss)
 plt.legend(
     bbox_to_anchor=(0, 1.1, 1, 0),
     loc="upper left",
@@ -177,12 +196,12 @@ plt.ylabel("PC2")
 plt.tight_layout()
 
 
-# %% explore the outlier
+# %% Explore the variance in the data
 
 plt.figure(figsize=(8, 5))
 sns.boxplot(wns)
-plt.xlabel('Identified peak index')
-plt.ylabel(r'$\omega_n$')
+plt.xlabel("Identified peak index")
+plt.ylabel(r"$\omega_n$")
 plt.tight_layout()
 
 
@@ -191,15 +210,17 @@ plt.tight_layout()
 # remove the 10th mode from the PCA
 wns_crop = np.delete(wns, [10], axis=1)
 
+# PCA on the reduced dataset
 U, s, V = np.linalg.svd(wns_crop, full_matrices=0)
 PCS = U @ np.diag(s)
 
+# Plotting the first 2 principal components
 ll = ["Baseline", "$M_a=256$", "$M_a=620$", "$M_a=898$"]
 plt.figure(figsize=(8, 5))
 for d in [0, 1, 2, 3]:
     ix = [l["dmg"] == d for l in labs]
-    ss = [20*v["amp"] for i, v in zip(ix, labs) if i]
-    plt.scatter(PCS[ix, 0], PCS[ix, 1], color=f'C{d}', label=ll[d], s=ss)
+    ss = [20 * v["amp"] for i, v in zip(ix, labs) if i]
+    plt.scatter(PCS[ix, 0], PCS[ix, 1], color=f"C{d}", label=ll[d], s=ss)
 plt.legend(
     bbox_to_anchor=(0, 1.1, 1, 0),
     loc="upper left",
@@ -213,6 +234,10 @@ plt.ylabel("PC2")
 plt.tight_layout()
 
 
+#%%
+'''
+PCA epilogue
 
+'''
 
 # %% Outlier analysis (Matty tbc)
