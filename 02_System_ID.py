@@ -309,13 +309,16 @@ props = alg(y_dc)
 
 # %% plot stabilisation diagram
 
-plt.figure()
+plt.figure(figsize=(8,5))
 for i, order in enumerate(props):
     wns = order[0] / (2 * np.pi)
     wns = wns[order[1] > 0]
     plt.scatter(wns, [i] * len(wns), s=1, marker="x", c="k")
+plt.ylabel('Model order')
 plt.gca().twinx().semilogy(f, SVS[:, :5], label='SVS')
 plt.xlim([0, 160])
+plt.xlabel('$\omega')
+plt.ylabel('$|H|$')
 plt.show()
 
 
