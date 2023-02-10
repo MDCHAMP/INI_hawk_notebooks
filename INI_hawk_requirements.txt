@@ -1,5 +1,7 @@
 numpy
 scipy
+matplotlib
+seaborn
 git+https://github.com/MDCHAMP/hawk_tools
 git+https://github.com/TimothyRogers/pyMA
 
