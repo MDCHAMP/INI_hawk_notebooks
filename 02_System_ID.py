@@ -1,5 +1,6 @@
 # %%
 import numpy as np
+from scipy.signal import csd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from hawk_tools import get_hawk_data
@@ -171,6 +172,7 @@ ranges = (  # (w_low, w_high), n_modes_in_range
 )
 # Challenge: see if you can ID the mode (?) at 70Hz
 
+
 def get_wns(ranges, H, w, oob=0):
     zts = []
     wns = []
@@ -182,6 +184,7 @@ def get_wns(ranges, H, w, oob=0):
         wns.extend(wn)
         zts.extend(zs)
     return H_pred, np.array(wns), np.array(zts)
+
 
 # fit the model
 H_pred, wns_pred, zetas_pred = get_wns(ranges, H, w, oob=oob)
@@ -210,7 +213,7 @@ axs[0].legend(
 plt.tight_layout()
 plt.show()
 
-# note that without computing the modeshapes we cannot reconstruct the entire FRF. 
+# note that without computing the modeshapes we cannot reconstruct the entire FRF.
 
 # %%
 """
@@ -225,6 +228,71 @@ Wrapping up on RFP method
     etc.
 """
 
-# %% SSI (Max TBC)
+# %% SSI
+
+"""
+SSI maths goes here
+
+pyMA shoutout
+"""
+
+# %% Load some data
+
+decimate_factor = 10
+
+# single test, single repeat, single sensor
+data = get_hawk_data("NI", "RPH_AR", 1, 1)["RPH_AR_1_1"]
+
+y = []
+for key, sensor in data.items():
+    if key[:3] in {"EXH", "FRC", "TRI", "Met"}:
+        continue  # skip some sensor channels
+    y.append(sensor["Measurement"]["value"])
+y = np.array(y)
+y_units = data["LTC-01"]["Measurement"]["units"]
 
 
+# plot the time series
+plt.figure(figsize=(8, 5))
+plt.plot(y.T)
+plt.ylabel(f"Acceleration ({y_units})")
+plt.show()
+# note the 10 repeats in the series
+
+
+# %% compte singular valued spectrum
+
+# you should experiment with these:
+nfft = 10000
+
+# Compute CPSD to (N/2, P, P) tensor
+cpsd = np.zeros(
+    (int(nfft / 2) + 1, times_series.shape[0], times_series.shape[0]), dtype=complex
+)
+for i, sig1 in enumerate(times_series):
+    for j, sig2 in enumerate(times_series):
+        f, cpsd[:, i, j] = csd(sig1, sig2, fs=1 / dt, nperseg=nfft, noverlap=None)
+
+
+# Take U, S, V = svd(CPSD)
+U, S, V = np.linalg.svd(cpsd)
+
+# %% use pyMA to perform SSI
+
+
+# %%
+
+"""
+SSI epilogue
+"""
+
+
+# %%
+
+"""
+Next steps / exercises
+
+    - load the data on your machine
+    - explore and make plots
+    - 
+"""
