@@ -59,47 +59,48 @@ Below are a few examples of using the function and interacting with the data.
 """
 
 
-#%% Load a single rep of a single test
-data = get_hawk_data('LMS', 'BR_AR', 1, 1)
-print(list(data.keys())) # available datasets
-print(list(data['BR_AR_1_1'].keys())) # available sensors in the data
-print(list(data['BR_AR_1_1']['LTC-03'].keys())) # fields per sensor
+# %% Load a single rep of a single test
 
-#%% pull out the FRF of a sngle sensor and plot
-H = data['BR_AR_1_1']['LTC-03']['Frequency Response Function']['Y_data']['value']
-w = data['BR_AR_1_1']['LTC-03']['Frequency Response Function']['X_data']['value']
+data = get_hawk_data("LMS", "BR_AR", 1, 1)
+print(list(data.keys()))  # available datasets
+print(list(data["BR_AR_1_1"].keys()))  # available sensors in the data
+print(list(data["BR_AR_1_1"]["LTC-03"].keys()))  # fields per sensor
 
-H_units = data['BR_AR_1_1']['LTC-03']['Frequency Response Function']['Y_data']['units']
+# %% pull out the FRF of a sngle sensor and plot
 
-w_units = data['BR_AR_1_1']['LTC-03']['Frequency Response Function']['X_data']['units']
+H = data["BR_AR_1_1"]["LTC-03"]["Frequency Response Function"]["Y_data"]["value"]
+w = data["BR_AR_1_1"]["LTC-03"]["Frequency Response Function"]["X_data"]["value"]
 
-fig, axs = plt.subplots(2,1, figsize=(8,5))
+H_units = data["BR_AR_1_1"]["LTC-03"]["Frequency Response Function"]["Y_data"]["units"]
+w_units = data["BR_AR_1_1"]["LTC-03"]["Frequency Response Function"]["X_data"]["units"]
+
+fig, axs = plt.subplots(2, 1, figsize=(8, 5))
 axs[0].semilogy(w, np.abs(H))
 axs[1].plot(w, np.angle(H))
-axs[0].set_xlabel(r'$\omega$ ({})'.format(w_units))
-axs[1].set_xlabel(r'$\omega$ ({})'.format(w_units))
-axs[0].set_ylabel(r'$|H(\omega)|$ ({})'.format(H_units))
-axs[1].set_ylabel(r'$\angle H(\omega)$ ({})'.format(H_units))
-axs[0].set_xlim([0,160])
-axs[1].set_xlim([0,160])
+axs[0].set_xlabel(r"$\omega$ ({})".format(w_units))
+axs[1].set_xlabel(r"$\omega$ ({})".format(w_units))
+axs[0].set_ylabel(r"$|H(\omega)|$ ({})".format(H_units))
+axs[1].set_ylabel(r"$\angle H(\omega)$ ({})".format(H_units))
+axs[0].set_xlim([0, 160])
+axs[1].set_xlim([0, 160])
 plt.tight_layout()
 plt.show()
 
-#%% load more repittions - note that the earlier download is cached
-data = get_hawk_data('LMS', 'BR_AR', 1, [1,2,3])
+# %% load more repittions - note that the earlier download is cached
+data = get_hawk_data("LMS", "BR_AR", 1, [1, 2, 3])
 print(list(data.keys()))
 
-#%% Load some NI data
-data = get_hawk_data('NI', 'RPH_AR', 1, [1,2])
-print(list(data.keys())) # available datasets
-print(list(data['RPH_AR_1_1'].keys())) # available sensors in the data
-print(list(data['RPH_AR_1_1']['LTC-01'].keys())) # fields per sensor
+# %% Load some NI data
+data = get_hawk_data("NI", "RPH_AR", 1, [1, 2])
+print(list(data.keys()))  # available datasets
+print(list(data["RPH_AR_1_1"].keys()))  # available sensors in the data
+print(list(data["RPH_AR_1_1"]["LTC-01"].keys()))  # fields per sensor
 # Note the different fields available between test campaigns
 
-'''
+"""
 For more information on the sensor locations and the test runs, check out the spreadsheets available in the repo.
 
 # Advanced usage
 
 Optionally, the load_kwargs can be used to oly load certain signals from the data. A few examples are included below.
-'''
+"""
