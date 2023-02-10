@@ -95,7 +95,7 @@ print(list(data["RPH_AR_1_1"].keys()))  # available sensors in the data
 print(list(data["RPH_AR_1_1"]["LTC-01"].keys()))  # fields per sensor
 # Note the different fields available between test campaigns
 
-#%%
+# %%
 """
 For more information on the sensor locations and the test runs, check out the spreadsheets available in the repo.
 
@@ -107,11 +107,11 @@ Optionally, the load_kwargs can be used to only load certain signals from the da
 # %% Load only the FRFs (considerably faster)
 
 load_opts = {
-    "data": "Frequency Response Function", # FRFs only
+    "data": "Frequency Response Function",  # FRFs only
     "meta": False,  # do not load metadata i.e test specific data
-    "attrs": False, # do not load attributes i.e sensor number
-    "compress_x_axis": True, # add x data as seperate channel (rather than copying to each sensor)
-    "sensors":None # Load all sensors
+    "attrs": False,  # do not load attributes i.e sensor number
+    "compress_x_axis": True,  # add x data as seperate channel (rather than copying to each sensor)
+    "sensors": None,  # Load all sensors
 }
 
 data = get_hawk_data("LMS", "BR_AR", 1, [1, 2, 3], load_kwargs=load_opts)
@@ -119,4 +119,6 @@ print(list(data.keys()))  # available datasets
 print(list(data["BR_AR_1_1"].keys()))  # available sensors in the data
 print(list(data["BR_AR_1_1"]["LTC-03"].keys()))  # fields per sensor
 
-ws = data["BR_AR_1_1"]["X_data"] # frequency vector available at the top level of each test
+ws = data["BR_AR_1_1"][
+    "X_data"
+]  # frequency vector available at the top level of each test now
