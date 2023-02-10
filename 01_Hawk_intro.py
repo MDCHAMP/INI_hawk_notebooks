@@ -122,3 +122,12 @@ print(list(data["BR_AR_1_1"]["LTC-03"].keys()))  # fields per sensor
 ws = data["BR_AR_1_1"][
     "X_data"
 ]  # frequency vector available at the top level of each test now
+
+
+'''
+Next steps / exercises
+
+    - load the data on your machine
+    - explore and make plots
+    - 
+'''
