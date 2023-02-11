@@ -4,6 +4,7 @@ from scipy.signal import csd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from hawk_tools import get_hawk_data
+from pyma.oma import ssi
 
 sns.set_theme("notebook")
 sns.set_style("ticks")
@@ -238,7 +239,6 @@ pyMA shoutout
 
 # %% Load some data
 
-decimate_factor = 10
 
 # single test, single repeat, single sensor
 data = get_hawk_data("NI", "RPH_AR", 1, 1)["RPH_AR_1_1"]
@@ -250,7 +250,7 @@ for key, sensor in data.items():
     y.append(sensor["Measurement"]["value"])
 y = np.array(y)
 y_units = data["LTC-01"]["Measurement"]["units"]
-
+dt = 1 / int(data["Meta"]["Acquisition Sample Rate"])
 
 # plot the time series
 plt.figure(figsize=(8, 5))
@@ -264,20 +264,63 @@ plt.show()
 
 # you should experiment with these:
 nfft = 10000
+sensor_idx = slice(None) # will be slow for all sensors
 
 # Compute CPSD to (N/2, P, P) tensor
+yc = y[sensor_idx, :]
 cpsd = np.zeros(
-    (int(nfft / 2) + 1, times_series.shape[0], times_series.shape[0]), dtype=complex
+    (int(nfft / 2) + 1, yc.shape[0], yc.shape[0]), dtype=complex
 )
-for i, sig1 in enumerate(times_series):
-    for j, sig2 in enumerate(times_series):
+# This can take ~2 minutes to compute for all sensors
+for i, sig1 in enumerate(yc):
+    for j, sig2 in enumerate(yc):
         f, cpsd[:, i, j] = csd(sig1, sig2, fs=1 / dt, nperseg=nfft, noverlap=None)
 
+_, SVS, _ = np.linalg.svd(cpsd)
 
-# Take U, S, V = svd(CPSD)
-U, S, V = np.linalg.svd(cpsd)
+#%% Plot singuilar valued spectrum
+
+plt.figure(figsize=(8,5))
+plt.semilogy(f, SVS[:,:5])
+plt.ylabel('$|H|$')
+plt.xlabel('$\omega$')
+plt.xlim([0, 160])
+plt.tight_layout()
+plt.show()
+
 
 # %% use pyMA to perform SSI
+
+# you should experiment with these:
+sensor_idx = slice(None) # will be slow for all sensors
+decimate_factor = 10 # speed up by increasing this
+max_order = 60
+compute_orders = -1 # -1 => compute all orders
+
+y_dc = y[sensor_idx, ::decimate_factor]
+dt_decimated = dt * decimate_factor
+opts = {
+    "max_model_order": max_order,
+    "model_order": compute_orders,
+    "dt": dt_decimated,
+}
+alg = ssi.SSI(opts)
+props = alg(y_dc)
+
+# %% plot stabilisation diagram
+
+plt.figure(figsize=(8,5))
+for i, order in enumerate(props):
+    wns = order[0] / (2 * np.pi)
+    wns = wns[order[1] > 0]
+    plt.scatter(wns, [i] * len(wns), s=1, marker="x", c="k")
+plt.ylabel('Model order')
+plt.xlabel('$\omega$')
+plt.gca().twinx().semilogy(f, SVS[:, :5], label='SVS')
+plt.xlim([0, 160])
+
+plt.ylabel('$|H|$')
+plt.show()
 
 
 # %%
