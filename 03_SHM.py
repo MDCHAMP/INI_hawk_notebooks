@@ -92,7 +92,7 @@ def get_wns(ranges, ws, frf, oob=6):
 
 # You should experiment with these:
 data_dir = r"C:\Users\me1mcz\Downloads\hawk_data"  # use your cached data if you have it downloaded
-DS = "RLE"  # damage case
+DS = "TLE"  # damage case {TLE, CTE, RLE}
 ranges = (
     ((5, 9), 1),
     ((12, 14), 1),
@@ -129,7 +129,7 @@ out = {}
 offset = {"CTE": 19, "RLE": 10, "TLE": 1}  # dont ask...
 for series, runs in [
     ("BR_AR", np.arange(1, 6)),
-    (f"DS_{DS}", np.arange(offset[DS], offset["RLE"] + 9 + 1)),
+    (f"DS_{DS}", np.arange(offset[DS], offset[DS] + 9 + 1)),
 ]:
     # loop through test runs
     for run in runs:
@@ -144,9 +144,6 @@ for series, runs in [
             for sensor, sensor_data in rep_data.items():
                 # exclude some sensors and metadata
                 if sensor[:3] in {"TRI", "EXH", "FRC", "Met", "X_d"}:
-                    continue
-                # exclude sensors closest to wing root (SNR too low)
-                if int(sensor[-1]) < 2:
                     continue
                 # compute wns
                 frf = sensor_data["Frequency Response Function"]["Y_data"]["value"]
