@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from hawk_tools import get_hawk_data
+from scipy.spatial.distance import mahalanobis
 
 sns.set_theme("notebook")
 sns.set_style("ticks")
