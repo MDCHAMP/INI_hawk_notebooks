@@ -1,0 +1,1385 @@
+---
+title: System ID and SHM
+---
+
+```{python}
+#| echo: false
+
+import hawk_tools
+from hawk_tools.new_hdf5_loader import load_hdf5
+
+from pyma.oma import ssi
+from boaf.algorithms.mixture import GMM 
+
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy.signal import csd
+from scipy.spatial.distance import mahalanobis
+
+sns.set_theme("notebook")
+sns.set_style("ticks")
+sns.set_palette("Set2")
+```
+
+## Aims for this Session
+
+:::{.nonincremental}
+Things we will do:
+
+- Show some classic methods from structural dynamics
+- Look at problems in system ID for dynamics
+- Explore where it goes wrong
+
+:::
+
+. . . 
+
+:::{.nonincremental}
+Things we won't do:
+
+- Exhaustively cover all the existing methods
+- Show you the "optimal" solution
+- Make this week redundant!
+
+:::
+
+## System ID Background
+
+Remember we have a parametric model:
+
+\begin{equation*}
+    H_{jk}(\nu) = \sum_{r=1}^R \frac{\tilde{\varphi}_j^{(r)}\tilde{\varphi}_k^{(r)}}{\lambda_r -\nu^2 + 2\nu\lambda_r^{1/2}\zeta_r\boldsymbol{i}}
+\end{equation*}
+
+. . .
+
+:::{.space_para}
+For complex systems we will have very many modes (i.e. $R$ is very large) but we can't resolve this. 
+
+We will go straight to a low order model as a subset of available modes.
+:::
+
+:::{.callout-warning}
+Beware the implicit assumptions!
+:::
+
+## Determining Modal Properties
+
+![](./images/mag_frfs.png){width="80%" fig-align="center"}
+
+## Determining Modal Properties
+
+![](./images/mag_frfs_poles.png){width="80%" fig-align="center"}
+
+## Determining Modal Properties
+
+![](./images/phase_frfs.png){width="80%" fig-align="center"}
+
+## Determining Modal Properties
+
+![](./images/phase_frfs_poles.png){width="80%" fig-align="center"}
+
+## Determining Modal Properties
+
+
+![](./images/ms_im_part_1.png){width="80%" fig-align="center"}
+
+![](./images/ms_im_part_all.png){width="80%" fig-align="center"}
+
+
+## A First Attempt
+
+We will make the assumption in SDOF curve fit that only one mode affects the FRF close to the peak. 
+
+\begin{equation*}
+    H_{jk}(\nu) = \sum_{r=1}^R \frac{\tilde{\varphi}_j^{(r)}\tilde{\varphi}_k^{(r)}}{\lambda_r -\nu^2 + 2\nu\lambda_r^{1/2}\zeta_ri} \approx \frac{\tilde{\varphi}_j^{(r)}\tilde{\varphi}_k^{(r)}}{\lambda_r -\nu^2 + 2\nu\lambda_r^{1/2}\zeta_r\boldsymbol{i}}
+\end{equation*}
+
+The above approximation in the region of the $r^\text{th}$ peak, when $\nu$ is close to $\omega_r$. 
+
+## SDOF Curve Fitting
+
+If we make this assumption, then when $\nu^2=\lambda_r$,
+
+\begin{equation*}
+    \vert H_{jk}(\nu) \vert = \frac{\left| \tilde{\phi}_j^{(r)}\tilde{\phi}_k^{(r)}\right|}{2\lambda_r\zeta_r}
+\end{equation*}
+
+Rearranging this gives,
+
+\begin{equation*}
+    2\lambda_r\zeta_r\vert H_{jk}(\nu) \vert = \left| \tilde{\phi}_j^{(r)}\tilde{\phi}_k^{(r)}\right|
+\end{equation*}
+
+## Determining $\lambda_r$ and $\zeta_r$
+
+![](./images/half_power.tikz.png)
+
+Why wouldn't you do this?
+
+## A Slightly Smarter Approach
+
+Let's rewrite our FRF equation in a slightly different form,
+
+$$
+H_{jk}(\nu) = \sum_{r=1}^R \frac{\phi_j^{(r)} L_{k,r}}{\boldsymbol{i}\omega - \lambda_r} + \frac{\phi_j^{(r)}L_{k,r}^{*} }{\boldsymbol{i}\omega - \lambda^{*}_r}
+$$
+
+For most ID though we might deal with,
+
+$$
+H_{jk}(\nu) =\frac{\sum_{k=0}^m a_k(\boldsymbol{i}\omega)^k}{\sum_{k=0}^n b_k(\boldsymbol{i}\omega)^k}
+$$
+
+You can also generalise this to matrix fractions for "poly-reference" approaches
+
+## Rational Fraction Polynomial Approach
+
+:::{.space_para}
+The problem is reduced to a (nonlinear) curve fitting task.
+
+We will massage this into a linear least squares problem, let,
+:::
+
+:::{style="font-size: 1.2rem !important;"}
+
+$$
+\newcommand{\herm}{^\text{H}}
+\newcommand{\transpose}{^\text{T}}
+E = \underbrace{\begin{bmatrix}
+        1 & \boldsymbol{i}\omega_1 & \ldots & (\boldsymbol{i}\omega_1)^m \\
+        1 & \vdots & \ddots & \vdots \\
+        1 & \boldsymbol{i}\omega_N & \ldots & (\boldsymbol{i}\omega_N)^m \\
+    \end{bmatrix}}_{P}\boldsymbol{A} + \underbrace{\begin{bmatrix}
+        H(\omega_1) & H(\omega_1)\boldsymbol{i}\omega_1 & \ldots & H(\omega_1)(\boldsymbol{i}\omega_1)^{n-1} \\
+        \vdots & \ddots & \ddots & \vdots \\
+        H(\omega_N) & H(\omega_N)\boldsymbol{i}\omega_N & \ldots & H(\omega_N)(\boldsymbol{i}\omega_N)^{n-1} \\
+    \end{bmatrix}}_{T}\boldsymbol{B} - \begin{Bmatrix} H(\omega_1)(\boldsymbol{i}\omega_1)^{n} \\ \vdots \\ H(\omega_N)(\boldsymbol{i}\omega_1)^{n}\end{Bmatrix}
+$$
+
+:::
+
+Then set $J = E\herm E$, and eventually,
+
+
+::::{.columns}
+
+:::{.column width="50%"}
+$$
+\begin{bmatrix} Y & X \\ X\transpose & Z \end{bmatrix}\begin{Bmatrix} A \\ B \end{Bmatrix} = \begin{Bmatrix} G \\ F \end{Bmatrix}
+$$
+:::
+
+:::{.column width="50%"}
+
+:::::{.nonincremental}
+- $X = -\Re\left(P\herm T\right)$
+- $Y=P\herm P$
+- $Z=T\herm T$
+- $G=\Re\left(P\herm W\right)$
+- $F = \Re\left(T\herm W\right)$
+:::::
+
+:::
+
+::::
+
+## Does RFP Work?
+
+```{python}
+#| fig-align: center
+
+# %% Load some data
+
+
+# You should experiment with these:
+sensor = "LTC-05"
+
+# single test, single repeat, single sensor
+data = hawk_tools.get_hawk_data("LMS", "BR_AR", 1, 1)["BR_AR_1_1"][sensor]
+# Try changing the sensor
+
+H = data["Frequency Response Function"]["Y_data"]["value"]
+w = data["Frequency Response Function"]["X_data"]["value"]
+
+H_units = data["Frequency Response Function"]["Y_data"]["units"]
+
+# plot the FRF
+fig, axs = plt.subplots(2, 1, figsize=(8, 5))
+axs[0].semilogy(w, np.abs(H))
+axs[1].plot(w, np.angle(H))
+axs[0].set_xlabel(r"$\omega$ (Hz)")
+axs[1].set_xlabel(r"$\omega$ (Hz)")
+axs[0].set_ylabel(r"$|H(\omega)|$ ({})".format(H_units))
+axs[1].set_ylabel(r"$\angle H(\omega)$ ({})".format(H_units))
+axs[0].set_xlim([0, 160])
+axs[1].set_xlim([0, 160])
+plt.tight_layout()
+plt.show()
+
+```
+
+## Implementing RFP
+
+```{python}
+#| echo: false
+
+# Hermitian transpose
+def HT(a):
+    return a.conj().T
+
+```
+
+```{python}
+#| code-fold: false
+
+# Rational fraction polynomial model
+def RFP(H, w, n_modes, oob_terms=0):
+    # Specify the orders of our approximation
+    m = (
+        n_modes * 2 + 1 + oob_terms
+    )  # number of coefficients in the numerator polynomial
+    n = (
+        n_modes * 2 + 1
+    )  # number of coefficients in the denominator -1 because we fix b_n=1
+
+    # complex frequency vector
+    iw = 1j * w
+
+    # Build monomial basis matricies
+    Phi_a = iw[:, None] ** np.arange(m)
+    Phi_b_all = iw[:, None] ** np.arange(n)
+    Phi_b = Phi_b_all[:, :-1]  # ignore last column because bn=1
+
+    # preallocate some calculations for speed
+    Phi_bH = Phi_b * H[:, None]
+    Hiwn = H * Phi_b_all[:, -1]
+    D = -HT(Phi_a) @ (Phi_bH)
+
+    # form the block matricies
+    M = np.block([[HT(Phi_a) @ Phi_a, D], [D.T, HT(Phi_bH) @ (Phi_bH)]])
+    x = np.block([HT(Phi_a) @ Hiwn, -HT(Phi_bH) @ Hiwn])
+
+    # Solve and extract the coefficients of the polynomials
+    AB = np.linalg.solve(np.real(M), np.real(x))
+    a = AB[:m, None]
+    b = np.append(AB[m:], 1)[:, None]
+
+    # Generate the predicted FRF
+    H_pred = (Phi_a @ a) / (Phi_b_all @ b)
+
+    # Pull out the modal porperties
+    roots_b = sorted(np.roots(np.flip(b[:, 0])))[
+        ::-2
+    ]  # remove every other becaus they are conj pairs
+    wns = np.abs(roots_b)
+    zetas = -np.real(roots_b) / wns
+    return H_pred, wns, zetas
+
+
+```
+
+
+## The moment of truth
+
+```{python}
+#| code-fold: false
+
+modes = 10
+oob = 0
+w_low = 5
+w_high = 180
+
+# fit the model
+idx = np.logical_and(w > w_low, w < w_high)
+H_pred, wns_pred, zetas_pred = RFP(H[idx], w[idx], n_modes=modes, oob_terms=oob)
+
+```
+
+```{python}
+#| echo: false
+#| fig-align: center
+
+# plot the FRF
+fig, axs = plt.subplots(2, 1, figsize=(8, 5))
+axs[0].semilogy(w, np.abs(H), label="True")
+axs[0].semilogy(w[idx], np.abs(H_pred), label="Predicted")
+axs[1].plot(w, np.angle(H), label="True")
+axs[1].plot(w[idx], np.angle(H_pred), label="Predicted")
+[axs[0].axvline(x, c="k", ls="--") for x in wns_pred]
+axs[0].set_xlabel(r"$\omega$ (Hz)")
+axs[1].set_xlabel(r"$\omega$ (Hz)")
+axs[0].set_ylabel(r"$|H(\omega)|$ ({})".format(H_units))
+axs[1].set_ylabel(r"$\angle H(\omega)$ ({})".format(H_units))
+axs[0].set_xlim([0, 160])
+axs[1].set_xlim([0, 160])
+axs[0].legend(
+    bbox_to_anchor=(0, 1.2, 1, 0),
+    loc="upper left",
+    ncols=2,
+    mode="expand",
+    borderaxespad=0,
+    frameon=False,
+)
+plt.tight_layout()
+plt.show()
+
+```
+
+
+## More Modes Will Help?
+
+```{python}
+#| code-fold: false
+
+modes = 30
+oob = 0
+w_low = 5
+w_high = 180
+
+# fit the model
+idx = np.logical_and(w > w_low, w < w_high)
+H_pred, wns_pred, zetas_pred = RFP(H[idx], w[idx], n_modes=modes, oob_terms=oob)
+
+```
+
+```{python}
+#| echo: false
+#| fig-align: center
+
+# plot the FRF
+fig, axs = plt.subplots(2, 1, figsize=(8, 5))
+axs[0].semilogy(w, np.abs(H), label="True")
+axs[0].semilogy(w[idx], np.abs(H_pred), label="Predicted")
+axs[1].plot(w, np.angle(H), label="True")
+axs[1].plot(w[idx], np.angle(H_pred), label="Predicted")
+[axs[0].axvline(x, c="k", ls="--") for x in wns_pred]
+axs[0].set_xlabel(r"$\omega$ (Hz)")
+axs[1].set_xlabel(r"$\omega$ (Hz)")
+axs[0].set_ylabel(r"$|H(\omega)|$ ({})".format(H_units))
+axs[1].set_ylabel(r"$\angle H(\omega)$ ({})".format(H_units))
+axs[0].set_xlim([0, 160])
+axs[1].set_xlim([0, 160])
+axs[0].legend(
+    bbox_to_anchor=(0, 1.2, 1, 0),
+    loc="upper left",
+    ncols=2,
+    mode="expand",
+    borderaxespad=0,
+    frameon=False,
+)
+plt.tight_layout()
+plt.show()
+
+```
+
+## What Can We Do?
+
+
+
+
+
+::::{.columns}
+
+:::{.column width="50%"}
+```{python}
+#| code-fold: show
+
+oob = 6 # "Out of Band" effects
+# (w_low, w_high), n_modes_in_range
+ranges = ( 
+    ((5, 9), 1),
+    ((12, 14), 1),
+    ((15, 19), 1),
+    ((22, 24), 2),
+    ((26, 30), 1),
+    ((30.5, 31), 1),
+    ((35, 37), 1),
+    ((40.5, 44), 2),
+    ((48.5, 54), 2),
+    ((86, 90), 1),
+    ((92, 100), 1),
+    ((112, 118.5), 1),
+    ((119.5, 122), 1),
+    ((122, 125), 1),
+    ((135, 138), 1),
+    ((154, 162), 1),
+)
+```
+
+```{python}
+#| code-fold: true
+
+
+def get_wns(ranges, H, w, oob=0):
+    zts = []
+    wns = []
+    H_pred = np.zeros_like(H) * np.nan
+    for (low, high), n in ranges:
+        idx = np.logical_and(w > low, w < high)
+        Hp, wn, zs = RFP(H[idx], w[idx], n, oob_terms=oob)
+        H_pred[idx] = np.squeeze(Hp)
+        wns.extend(wn)
+        zts.extend(zs)
+    return H_pred, np.array(wns), np.array(zts)
+
+# fit the model
+H_pred, wns_pred, zetas_pred = get_wns(ranges, H, w, oob=oob)
+```
+
+:::
+
+:::{.column width="50%"}
+```{python}
+#| echo: false
+#| fig-align: center
+
+# plot the FRF
+fig, axs = plt.subplots(2, 1, figsize=(8, 5))
+axs[0].semilogy(w, np.abs(H), linewidth=1, label="True")
+axs[0].semilogy(w, np.abs(H_pred),  linewidth=1, label="Predicted")
+axs[1].plot(w, np.angle(H),  linewidth=1, label="True")
+axs[1].plot(w, np.angle(H_pred),  linewidth=1, label="Predicted")
+[axs[0].axvline(x, c="k", ls="--") for x in wns_pred]
+axs[0].set_xlabel(r"$\omega$ (Hz)")
+axs[1].set_xlabel(r"$\omega$ (Hz)")
+axs[0].set_ylabel(r"$|H(\omega)|$ ({})".format(H_units))
+axs[1].set_ylabel(r"$\angle H(\omega)$ ({})".format(H_units))
+axs[0].set_xlim([0, 160])
+axs[1].set_xlim([0, 160])
+axs[0].legend(
+    bbox_to_anchor=(0, 1.2, 1, 0),
+    loc="upper left",
+    ncols=2,
+    mode="expand",
+    borderaxespad=0,
+    frameon=False,
+)
+plt.tight_layout()
+plt.show()
+
+```
+:::
+::::
+
+## With Much Interference 
+
+![](./images/identified_poles.png){width="90%" fig-align="center"}
+
+
+## With Much Interference 
+
+![](./images/modes_modes_modes.png){width="90%" fig-align="center"}
+
+## A Different Approach
+
+:::{.space_para}
+Usually we will not have access to the loading information so we can work with output-only methods.
+
+A current favourite is the Stochastic Subspace Identification family of methods.
+:::
+
+$$
+\renewcommand{\vec}[1]{\boldsymbol{#1}}
+$$
+
+\begin{aligned}
+\vec{x}_{t+1} &= A\vec{x}_t + \vec{w}_t\\
+\vec{y}_{t}   &= C\vec{x}_t + \vec{v}_t\\
+\end{aligned}
+
+where,
+
+$$
+\mathbb{E}\left[\begin{Bmatrix}\vec{w}_t \\ \vec{v}_t\end{Bmatrix}\begin{Bmatrix}\vec{w}_s\transpose & \vec{v}_s\transpose\end{Bmatrix}\right] = \begin{bmatrix}Q & S \\ S\transpose & R\end{bmatrix}\delta_{st}
+$$
+
+
+## Determining The System Properties
+
+:::{.space_para}
+Recall, that we have the Kalman filter as an optimal solution for determining the states of this system. 
+:::
+
+Also we have, as $t\to\infty$, forwards in time,
+
+$$ 
+\newcommand{\inv}{^{-1}}
+\Sigma = A\Sigma A\transpose - (\bar{C}\transpose - A\Sigma C\transpose)(\Lambda(0) - C\Sigma C\transpose)\inv (\bar{C}\transpose - A\Sigma C\transpose)\transpose
+$$
+
+and backwards in time,
+$$ 
+\bar{\Sigma} = A\transpose\bar{\Sigma}A - (C\transpose - A\transpose\bar{\Sigma}\bar{C}\transpose)(\Lambda(0) - \bar{C}\bar{\Sigma}\bar{C}\transpose)\inv (C\transpose - A\transpose\bar{\Sigma}\bar{C}\transpose)\transpose
+$$
+
+
+It then transpires that the canoncial correlations betweent the "future" and "past" are the square roots of the eigenvalues of $\Sigma\bar{\Sigma}$. We can exploit this to use CCA for determining $A$ and $C$ (and the other system properties).
+
+## SSI
+
+**Step 1:** Approximate stationary covariances,
+
+$$
+Y_p = \begin{bmatrix}
+    y_0 & y_1 & \ldots & y_{N-1}\\
+    \vdots & \ddots & \ldots & \vdots\\
+    y_{k-1} & y_k & \ldots & y_{N+k-2}\\
+\end{bmatrix} \qquad Y_f = \begin{bmatrix}
+    y_k & y_{k+1} & \ldots & y_{k+N-1}\\
+    \vdots & \ddots & \ldots & \vdots\\
+    y_{2k-1} & y_{2k} & \ldots & y_{N+2k-2}\\
+\end{bmatrix}
+$$
+
+$$
+\frac{1}{N} \begin{bmatrix} Y_p \\ Y_f\end{bmatrix}\begin{bmatrix} Y_p  & Y_f\end{bmatrix} = \begin{bmatrix}\Sigma_{pp} & \Sigma_{pf} \\ \Sigma_{fp} & \Sigma_{ff}\end{bmatrix}
+$$
+
+
+**Step 2:** Compute square roots of covariances
+$$ 
+\Sigma_{ff} = LL\transpose \qquad \Sigma_{pp} = MM\transpose
+$$
+
+## SSI
+
+**Step 3:** Compute SVD of normalised $\Sigma_{fp}$ 
+
+$$
+L\inv\Sigma_{fp}M^\text{-T} = USV\transpose\approx \hat{U}\hat{S}\hat{V}\transpose
+$$
+
+**Step 4:** Recover Observability and Reachability matrices
+
+$$
+\mathcal{O} = L\hat{U}\hat{S}^{1/2} \qquad \mathcal{C} = \hat{S}^{1/2}\hat{V}\transpose M\transpose
+$$
+
+**Step 5:** Estimate system matrices
+$$
+A = \underline{\mathcal{O}}^\dagger\overline{\mathcal{O}}\quad C = \mathcal{O}(1:p,:)
+$$
+
+## Modal Properties From System Matrices
+
+We can then recover modal properties from the system matrices as,
+
+\begin{aligned}
+    \lambda, \varPhi &= \text{eig}\left(A\right)\\
+    \mu &= \log(\lambda) \Delta_t\inv\\
+    \omega_n &= \vert \mu \vert\\
+    \zeta &= -\frac{\Re[\mu]}{\vert \mu \vert}\\
+    \Phi = C\varPhi
+\end{aligned}
+
+## Hawk SSI Example
+
+```{python}
+#| fig-align: center
+
+# single test, single repeat, single sensor
+data = hawk_tools.get_hawk_data("NI", "RPH_AR", 1, 1)["RPH_AR_1_1"]
+
+y = []
+for key, sensor in data.items():
+    if key[:3] in {"EXH", "FRC", "TRI", "Met"} or key[0] == 'L':
+        continue  # skip some sensor channels
+    y.append(sensor["Measurement"]["value"])
+y = np.array(y)
+y_units = data["LTC-01"]["Measurement"]["units"]
+dt = 1 / int(data["Meta"]["Acquisition Sample Rate"])
+
+# plot the time series
+plt.figure(figsize=(8, 5))
+plt.plot(y.T - np.mean(y,axis=1)[None,:], linewidth=0.75)
+plt.ylabel(f"Acceleration ({y_units})")
+plt.show()
+# note the 10 repeats in the series
+
+
+```
+
+## Hawk SSI Example
+
+A brief aside on Singular Value Spectra
+
+```{python}
+#| fig-align: center
+#| 
+
+nfft = 10000
+sensor_idx = slice(None) # will be slow for all sensors
+
+# Compute CPSD to (N/2, P, P) tensor
+yc = y[sensor_idx, :50000] - np.mean(y[sensor_idx,:],axis=1)[:,None]
+cpsd = np.zeros(
+    (int(nfft / 2) + 1, yc.shape[0], yc.shape[0]), dtype=complex
+)
+# This can take ~2 minutes to compute for all sensors
+for i, sig1 in enumerate(yc):
+    for j, sig2 in enumerate(yc):
+        f, cpsd[:, i, j] = csd(sig1, sig2, fs=1 / dt, nperseg=nfft, noverlap=None)
+
+_, SVS, _ = np.linalg.svd(cpsd)
+
+#%% Plot singular valued spectrum
+
+plt.figure(figsize=(8,5))
+plt.semilogy(f, SVS[:,:5])
+plt.ylabel('$|H|$')
+plt.xlabel('$\omega$')
+plt.xlim([0, 160])
+plt.ylim([1e-7, 1e-2])
+plt.tight_layout()
+plt.show()
+```
+
+## SSI Results
+
+```{python}
+#| code-fold: show
+#| fig-align: center
+
+# you should experiment with these:
+sensor_idx = slice(None) # will be slow for all sensors
+decimate_factor = 10 # speed up by increasing this
+max_order = 60
+compute_orders = -1 # -1 => compute all orders
+
+y_dc = y[sensor_idx, ::decimate_factor]
+dt_decimated = dt * decimate_factor
+opts = {
+    "max_model_order": max_order,
+    "model_order": compute_orders,
+    "dt": dt_decimated,
+}
+alg = ssi.SSI(opts)
+props = alg(y_dc)
+
+```
+
+```{python}
+#| echo: false
+#| fig-align: center
+
+# %% plot stabilisation diagram
+
+plt.figure(figsize=(8,5))
+for i, order in enumerate(props):
+    wns = order[0] / (2 * np.pi)
+    wns = wns[order[1] > 0]
+    plt.scatter(wns, [i] * len(wns), s=1, marker="x", c="k")
+plt.ylabel('Model order')
+plt.xlabel('$\omega$')
+plt.gca().twinx().semilogy(f, SVS[:, :5], label='SVS')
+plt.xlim([0, 160])
+
+plt.ylabel('$|H|$')
+plt.show()
+```
+
+## OK But Why Do We Care?
+
+:::{.space_para}
+Dynamic properties will be sensitive to the sorts of damage we are looking for.
+
+Cracks cause local loss in stiffness and roughly speaking we have,
+
+$$
+\omega_n = \sqrt{\frac{k}{m}}
+$$
+
+So changes in the system dynamics should directly relate to the sort of signatures from damage
+
+:::
+
+## Begin with the most basic approach
+```{python}
+#| echo: false
+#| 
+
+all_data = [("BR_AR", np.arange(1,6)), ("DS_TLE", np.arange(1,10))] # the two test series we're going to load, BR_AR and DS_DLE.
+
+opts = {
+    'data':'Frequency Response Function',
+    'meta':True,
+    'attrs':False,
+    'compress_x_axis':True,
+} # some options for get_hawk_data function in hawk_tools
+
+out = {} # empty dictionary to store data
+# loop through series
+for series, runs in all_data:
+    # loop through runs
+    for run in runs:
+        run_data = hawk_tools.get_hawk_data('LMS', series, run, download_dir = "../.hawk_data", load_kwargs=opts, ask=0, quiet=True)
+        # loop through reps
+        for rep, rep_data in run_data.items():
+            # loop through sensors
+            for sensor, sensor_data in rep_data.items():
+                if sensor != 'ULC-03': continue # 1 sensor only
+                if sensor[:3] in {"TRI", "EXH", "FRC", "Met"}:
+                    continue
+                if int(sensor[-1])<3:
+                    continue
+                frf = sensor_data["Frequency Response Function"]["Y_data"]["value"]
+                amp = run_data[rep]['Meta']['excitation']['LMSOutput']['value']
+                if 'DS' in rep:
+                    dmg = run_data[rep]['Meta']['additionalMass']['weight']['value']
+                    out[rep] = [frf,amp,dmg] # record FRF, test amplitude, and damage level via added mass.
+                else:
+                    out[rep] = [frf,amp] # if no damage, just record FRF and test amplitude
+
+freqs = run_data[rep]['X_data']['Frequency Response Function']['value']
+```
+
+```{python}
+#| echo: false
+#| fig-align: center
+
+plt.figure()
+plt.plot(freqs,np.abs(out['BR_AR_5_1'][0]),label = 'undamaged')
+plt.plot(freqs,np.abs(out['DS_TLE_9_1'][0]), label = 'damaged')
+plt.yscale('log')
+plt.xlabel('frequency (Hz)')
+plt.ylabel('FRF magnitude')
+plt.legend(loc = 'upper right')
+```
+
+## Refining the Feature Set
+
+Now, although we've now seen that the FRF is sensitive to damage, using the entire FRF would mean an 8192 dimensional feature vector. We can be a bit more clever, and focus on just one peak (e.g. a natural frequency) of the FRF plot that is sensitive to damage. For instance, if we zoom into ~ 156Hz
+
+```{python}
+#| echo: false
+#| fig-align: center
+
+
+plt.plot(freqs,np.abs(out['BR_AR_5_1'][0]))
+plt.plot(freqs,np.abs(out['DS_TLE_9_1'][0]))
+plt.yscale('log')
+plt.axvline(x=155)
+plt.axvline(x=157)
+plt.xlim([140,180])
+plt.xlabel('frequency (Hz)')
+plt.ylabel('FRF magnitude')
+```
+
+```{python}
+#| echo: false
+
+# set the spectral lines that we will use in our feature vector
+start_idx = int(np.where(freqs==155)[0])
+end_idx = int(np.where(freqs==157)[0])
+interval = 8
+
+# preallocate useful data 
+
+spectral_bands_undamaged = []
+test_amplitude_undamaged = []
+spectral_bands_damaged = []
+test_amplitude_damaged = []
+test_damage_severity = []
+
+for k, v in out.items():
+    if 'DS' in k:
+        spectral_bands_damaged.append(v[0][start_idx:end_idx:interval])
+        test_amplitude_damaged.append(v[1]) 
+        test_damage_severity.append(v[2])
+    else:
+        spectral_bands_undamaged.append(v[0][start_idx:end_idx:interval])
+        test_amplitude_undamaged.append(v[1]) 
+
+# store spectral lines for both test series   
+
+spectral_bands_undamaged = np.abs(spectral_bands_undamaged)  
+spectral_bands_damaged = np.abs(spectral_bands_damaged)  
+
+# input signal amplitude for each test
+
+test_amplitude_undamaged = np.array(test_amplitude_undamaged)
+test_amplitude_damaged = np.array(test_amplitude_damaged)
+
+# mass information for damage simulation test series 
+
+test_damage_severity = np.array(test_damage_severity)
+```
+
+## Outlier Analysis
+
+```{python}
+#| echo: false
+#| fig-align: center
+
+# useful tools for outlier analysis
+
+
+def outlier_threshold(CI,n,p):
+
+    # monte carlo sampling to determine threshold for outlier with confidence CI 
+
+    # N = number of generations - fixed at 1000 
+    # CI = confidence interval - e.g 95,99 
+
+    N = 1000
+
+    max_D = np.zeros((N,))
+
+    for i in range(0,N):
+        X = np.array(np.random.randn(n,p))
+        Xcov = np.cov(X.T)
+        Xcov_inv = np.linalg.inv(Xcov)
+        Xmean = np.mean(X,0)
+
+        D = np.zeros((n,))
+        
+        for j in range(0,n):
+            D[j] = mahalanobis(X[j,:],Xmean,Xcov_inv)
+
+        max_D[i] = np.max(D)
+
+    D_sort = np.sort(max_D)
+    idx = int(CI/(100/N))
+    threshold = D_sort[idx] 
+    return threshold
+
+def plot_outlier_analysis(threshold,reference,undamaged,damaged,damage_severity):
+
+    # Plotting function for outlier analysis. 
+
+    # threshold = threshold for novelty
+    # reference = data used to form reference statistics
+    # undamaged = data from undamaged state not used in reference
+    # damaged = data from damage state not used in reference
+    # damage_severity = mass value used to simulate damage 
+
+    # order data point number to appear in plot 
+
+    x_reference = np.arange(0,len(reference.T))
+    x_undamaged = np.arange(
+        len(reference.T),len(reference.T)+len(undamaged.T)
+        )
+    x_damage = np.arange(
+        len(reference.T)+len(undamaged.T), 
+        len(reference.T)+len(undamaged.T) + len(damaged.T)
+        )
+
+    # group novelty arrays
+    
+    reference_novelty = np.vstack((
+        reference,np.zeros_like(reference)
+        ))
+    undamaged_novelty = np.vstack((
+        undamaged,np.ones_like(undamaged)
+        ))
+    damaged_novelty = np.vstack((
+        damaged,2*np.ones_like(damaged)
+        ))
+    
+    # collect damage levels
+
+    dmg_lvl_1 = np.unique(damage_severity)[0]
+    dmg_lvl_2 = np.unique(damage_severity)[1]
+    dmg_lvl_3 = np.unique(damage_severity)[2]
+
+    default_size = 20 # marker size 
+
+    plt.figure()
+    plt.scatter(x_reference,reference_novelty[0,:],s = default_size,marker = 'o',c = 'indigo',alpha=0.5,label='undamaged')
+    plt.scatter(x_undamaged,undamaged_novelty[0,:],s = default_size,marker ='o',c = 'indigo',alpha =0.5,edgecolors=None)
+    plt.scatter(
+        x_damage[damage_severity == dmg_lvl_1],
+        damaged_novelty[0,damage_severity == dmg_lvl_1],
+        marker = 'o',
+        s = default_size*2,
+        c='darkgreen',
+        alpha =0.5,
+        label = 'damage level 1')
+    plt.scatter(
+        x_damage[damage_severity == dmg_lvl_2],
+        damaged_novelty[0,damage_severity == dmg_lvl_2],
+        marker = 'o',
+        s = default_size*4,
+        c='darkgreen',
+        alpha =0.5,
+        label = 'damage level 2')
+    plt.scatter(
+        x_damage[damage_severity==dmg_lvl_3],
+        damaged_novelty[0,damage_severity==dmg_lvl_3],
+        marker = 'o',
+        s = default_size*6,
+        c='darkgreen',
+        alpha =0.5,
+        label = 'damage level 3')
+    plt.axhline(y = threshold,linestyle ='--',color = 'k')
+    plt.axvline(x = len(reference_novelty.T),linestyle ='--',color = 'k',alpha =0.85)
+    plt.xlabel('data point #')
+    plt.ylabel('novelty index')
+    plt.legend(loc = 'upper left')
+    
+```
+
+```{python}
+#| fig-align: center
+
+# train novelty detector on range of undamaged, test on most severe damage.  
+
+# construct reference/training values as every other undamaged case
+
+reference_data = spectral_bands_undamaged[1::2,:]
+damaged_data = spectral_bands_damaged[60:,:]
+
+reference_data_amp = test_amplitude_undamaged[1::2]
+damaged_data_amp = test_amplitude_damaged[60::]
+
+damaged_data_severity = test_damage_severity[60::]
+
+# calculate statistics of this data set
+
+mu = np.mean(reference_data,0)
+cov = np.cov(reference_data.T)
+cov_inv = np.linalg.inv(cov)
+
+# calculate their novelty index
+
+reference_novelty = np.zeros_like((reference_data[:,0]))
+damaged_novelty = np.zeros_like((damaged_data[:,0]))
+
+for i in range(0,len(reference_data)):
+    reference_novelty[i] = mahalanobis(reference_data[i,:],mu,cov_inv)
+for i in range(0,len(damaged_data)):
+    damaged_novelty[i] = mahalanobis(damaged_data[i,:],mu,cov_inv)
+
+n = int(reference_data.shape[0])
+p = int(reference_data.shape[1])
+threshold = outlier_threshold(95,n,p)
+
+x = np.arange(0,len(reference_novelty)+len(damaged_novelty))
+y = np.hstack((reference_novelty,damaged_novelty))
+
+plt.figure()
+plt.scatter(
+    x[0:len(reference_novelty)],y[0:len(reference_novelty)],marker = 'o',label ='undamaged'
+    )
+plt.scatter(
+    x[len(reference_novelty):],y[len(reference_novelty):],marker = 'o',label = 'damaged'
+    )
+plt.axhline(y = threshold,linestyle ='--',color = 'k',alpha =0.85)
+plt.axvline(x = len(reference_novelty),linestyle ='--',color = 'k',alpha =0.85)
+plt.xlabel('data point #')
+plt.ylabel('novelty index')
+plt.legend(loc = 'upper left')
+
+```
+
+
+## It's Not Necessarily That Simple
+
+```{python}
+#| fig-align: center
+
+# %% train novelty detector on range of undamaged, test on range of undamage and damage data. 
+
+# construct reference values as every other undamaged case
+
+reference_data = spectral_bands_undamaged[1::2,:]
+undamaged_data = spectral_bands_undamaged[0::2,:]
+damaged_data = spectral_bands_damaged
+
+reference_data_amp = test_amplitude_undamaged[1::2]
+undamaged_data_amp = test_amplitude_undamaged[0::2]
+damaged_data_amp = test_amplitude_damaged
+
+damaged_data_severity = test_damage_severity
+
+# calculate statistics of this data set
+
+mu = np.mean(reference_data,0)
+cov = np.cov(reference_data.T)
+cov_inv = np.linalg.inv(cov)
+
+# calculate their novelty index
+
+reference_novelty = np.zeros_like((reference_data[:,0]))
+undamaged_novelty = np.zeros((spectral_bands_undamaged.shape[0]-reference_data.shape[0]))
+damaged_novelty = np.zeros_like((spectral_bands_damaged[:,0]))
+
+for i in range(0,len(reference_data)):
+    reference_novelty[i] = mahalanobis(reference_data[i,:],mu,cov_inv)
+for i in range(0,len(undamaged_data)):
+    undamaged_novelty[i] = mahalanobis(undamaged_data[i,:],mu,cov_inv)
+for i in range(0,len(damaged_data)):
+    damaged_novelty[i] = mahalanobis(damaged_data[i,:],mu,cov_inv)
+
+n = int(reference_data.shape[0])
+p = int(reference_data.shape[1])
+threshold = outlier_threshold(95,n,p)
+
+# %% plot 
+
+plot_outlier_analysis(threshold,
+                      reference_novelty,
+                      undamaged_novelty,
+                      damaged_novelty,
+                      damaged_data_severity)
+```
+
+## Damage in a Different Location
+```{python}
+#| echo: false
+#| fig-align: center
+
+# load in all DS_RLE tests
+
+all_data = [("DS_RLE", np.arange(10,19))]
+
+opts = {
+    'data':'Frequency Response Function',
+    'meta':True,
+    'attrs':False,
+    'compress_x_axis':True,
+}
+
+damage_RLE = {}
+# loop through series
+for series, runs in all_data:
+    # loop through runs
+    for run in runs:
+        run_data = hawk_tools.get_hawk_data('LMS', series, run, download_dir = "../.hawk_data", load_kwargs=opts, ask=0, quiet=True)
+        # loop through reps
+        for rep, rep_data in run_data.items():
+            # loop through sensors
+            for sensor, sensor_data in rep_data.items():
+                if sensor != 'ULC-03': continue # 1 sensor only
+                if sensor[:3] in {"TRI", "EXH", "FRC", "Met"}:
+                    continue
+                if int(sensor[-1])<3:
+                    continue
+                frf = sensor_data["Frequency Response Function"]["Y_data"]["value"]
+                amp = run_data[rep]['Meta']['excitation']['LMSOutput']['value']
+                if 'DS' in rep:
+                    dmg = run_data[rep]['Meta']['additionalMass']['weight']['value']
+                    damage_RLE[rep] = [frf,amp,dmg]
+```
+
+Let's take a look at the FRF for one of the DS_RLE tests, and the BR_AR (no damage) test that we looked at earlier.
+
+```{python}
+#| echo: false
+#| fig-align: center
+
+plt.figure()
+plt.plot(freqs,np.abs(out['BR_AR_5_1'][0]),label = 'undamaged')
+plt.plot(freqs,np.abs(damage_RLE['DS_RLE_15_1'][0]), label = 'damaged')
+plt.yscale('log')
+plt.xlabel('frequency (Hz)')
+plt.ylabel('FRF magnitude')
+plt.legend(loc = 'upper right')
+```
+
+## Novelty Detection on Root Damage
+
+ALthough the damage in RLE causes some change in the FRF, it is not as prominent of a change as the earlier damage location (TLE).
+
+```{python}
+#| fig-align: center
+
+spectral_bands_damaged_RLE = []
+test_amplitude_damaged_RLE = []
+test_damage_severity_RLE = []
+
+for k, v in damage_RLE.items():
+    spectral_bands_damaged_RLE.append(v[0][start_idx:end_idx:interval])
+    test_amplitude_damaged_RLE.append(v[1]) 
+    test_damage_severity_RLE.append(v[2])
+    
+spectral_bands_damaged_RLE = np.abs(spectral_bands_damaged_RLE)  
+test_amplitude_damaged_RLE = np.array(test_amplitude_damaged_RLE)
+test_damage_severity_RLE = np.array(test_damage_severity_RLE)
+
+# retain reference statistics from earlier
+
+damaged_novelty_RLE = np.zeros_like((spectral_bands_damaged_RLE[:,0]))
+
+for i in range(0,len(spectral_bands_damaged_RLE)):
+    damaged_novelty_RLE[i] = mahalanobis(spectral_bands_damaged_RLE[i,:],mu,cov_inv)
+
+n = int(reference_data.shape[0])
+p = int(reference_data.shape[1])
+threshold = outlier_threshold(95,n,p)
+
+# plot novelty
+
+plot_outlier_analysis(threshold,
+                      reference_novelty,
+                      undamaged_novelty,
+                      damaged_novelty_RLE,
+                      test_damage_severity_RLE)
+
+```
+
+## Compressing The Features More
+
+```{python}
+#| fig-align: center
+#| echo: false
+
+
+# Hermitian transpose
+def HT(a):
+    return a.conj().T
+
+
+# Rational fraction polynomial model
+def RFP(H, w, n_modes, oob_terms=0):
+    # Specify the orders of our approximation
+    m = (
+        n_modes * 2 + 1 + oob_terms
+    )  # number of coefficients in the numerator polynomial
+    n = (
+        n_modes * 2 + 1
+    )  # number of coefficients in the denominator -1 because we fix b_n=1
+
+    # complex frequency vector
+    iw = 1j * w
+
+    # Build monomial basis matricies
+    Phi_a = iw[:, None] ** np.arange(m)
+    Phi_b_all = iw[:, None] ** np.arange(n)
+    Phi_b = Phi_b_all[:, :-1]  # ignore last column because bn=1
+
+    # preallocate some calculations for speed
+    Phi_bH = Phi_b * H[:, None]
+    Hiwn = H * Phi_b_all[:, -1]
+    D = -HT(Phi_a) @ (Phi_bH)
+
+    # form the block matricies
+    M = np.block([[HT(Phi_a) @ Phi_a, D], [D.T, HT(Phi_bH) @ (Phi_bH)]])
+    x = np.block([HT(Phi_a) @ Hiwn, -HT(Phi_bH) @ Hiwn])
+
+    # Solve and extract the coefficients of the polynomials
+    AB = np.linalg.solve(np.real(M), np.real(x))
+    a = AB[:m, None]
+    b = np.append(AB[m:], 1)[:, None]
+
+    # Generate the predicted FRF
+    H_pred = (Phi_a @ a) / (Phi_b_all @ b)
+
+    # Pull out the modal porperties
+    roots_b = sorted(np.roots(np.flip(b[:, 0])))[
+        ::-2
+    ]  # remove every other becaus they are conj pairs
+    wns = np.abs(roots_b)
+    zetas = -np.real(roots_b) / wns
+    return H_pred, wns, zetas
+
+def get_wns(ranges, ws, frf, oob=6):
+    wns = []
+    for (low, high), n in ranges:
+        idx = np.logical_and(ws > low, ws < high)
+        _, wn, _ = RFP(frf[idx], ws[idx], n, oob_terms=oob)
+        wns.extend(wn)
+    return np.array(wns)
+
+
+# %% load the data series
+
+# You should experiment with these:
+data_dir = r"../.hawk_data"  # use your cached data if you have it downloaded
+DS = "TLE"  # damage case {TLE, CTE, RLE}
+ranges = (
+    ((5, 9), 1),
+    ((12, 14), 1),
+    ((15, 19), 1),
+    ((22, 24), 2),
+    ((26, 30), 1),
+    ((30.5, 31), 1),
+    ((35, 37), 1),
+    ((40.5, 44), 2),
+    ((48.5, 54), 2),
+    ((86, 90), 1),
+    ((92, 100), 1),
+    ((112, 118.5), 1),
+    ((119.5, 122), 1),
+    ((122, 125), 1),
+    ((135, 138), 1),
+    ((154, 162), 1),
+)
+
+# some meta data
+BR_AMP_levels = [0.4, 0.8, 1.2, 1.6, 2]
+DS_AMP_levels = [0.4, 1.2, 2, 0.4, 1.2, 2, 0.4, 1.2, 2]
+DS_DMG_levels = [1, 1, 1, 2, 2, 2, 3, 3, 3]
+
+# Advanced data loading: extract FRFs only
+load_opts = {
+    "data": "Frequency Response Function",
+    "meta": False,
+    "attrs": False,
+    "compress_x_axis": True,
+}
+# loop through test series
+out = {}
+offset = {"CTE": 19, "RLE": 10, "TLE": 1}  # dont ask...
+for series, runs in [
+    ("BR_AR", np.arange(1, 6)),
+    (f"DS_{DS}", np.arange(offset[DS], offset[DS] + 9 + 1)),
+]:
+    # loop through test runs
+    for run in runs:
+        run_data = hawk_tools.get_hawk_data(
+            "LMS", series, run, download_dir=data_dir, ask=0, load_kwargs=load_opts, quiet=True
+        )
+        # loop through test repeats
+        for rep, rep_data in run_data.items():
+            ws = rep_data["X_data"]["Frequency Response Function"]["value"]
+            # loop through sensors
+            wns = []
+            for sensor, sensor_data in rep_data.items():
+                # exclude some sensors and metadata
+                if sensor[:3] in {"TRI", "EXH", "FRC", "Met", "X_d"}:
+                    continue
+                # compute wns
+                frf = sensor_data["Frequency Response Function"]["Y_data"]["value"]
+                wns.append(get_wns(ranges, ws, frf))
+            # Store some metadata for visualisation
+            dat = rep.split("_")
+            num = int(dat[2]) - 1
+            if dat[0] == "DS":
+                num -= offset[dat[1]]
+                dmg = DS_DMG_levels[num]
+                amp = DS_AMP_levels[num]
+            elif dat[0] == "BR":
+                dmg = 0
+                amp = BR_AMP_levels[num]
+            av_wns = np.mean(wns, axis=0)
+            out |= {rep: [av_wns, {"dmg": dmg, "amp": amp}]}
+#print("Total tests analysed: ", len(out))
+#print("Sensors analysed per test: ", len(wns))
+wns, labs = zip(*(out.values()))
+wns = np.array(wns)
+
+
+```
+
+```{python}
+#| fig-align: center
+
+U, s, V = np.linalg.svd(wns, full_matrices=0)
+PCS = U @ np.diag(s)
+
+# Plotting the first 2 principal components
+ll = ["Baseline", "$M_a=256$", "$M_a=620$", "$M_a=898$"]
+plt.figure(figsize=(8, 5))
+for d in [0, 1, 2, 3]:
+    ix = [l["dmg"] == d for l in labs]
+    ss = [20 * v["amp"] for i, v in zip(ix, labs) if i]
+    plt.scatter(PCS[ix, 0], PCS[ix, 1], color=f"C{d}", label=ll[d], s=ss)
+plt.legend(
+    bbox_to_anchor=(0, 1.1, 1, 0),
+    loc="upper left",
+    ncols=4,
+    mode="expand",
+    borderaxespad=0,
+    frameon=False,
+)
+plt.xlabel("PC1")
+plt.ylabel("PC2")
+plt.tight_layout()
+
+```
+
+## What's Gone Wrong?
+
+```{python}
+#| echo: false
+#| fig-align: center
+
+plt.figure(figsize=(8, 5))
+sns.boxplot(wns)
+plt.xlabel("Identified peak index")
+plt.ylabel(r"$\omega_n$")
+plt.tight_layout()
+
+```
+
+## Can we fix it?
+
+```{python}
+#| fig-align: center
+
+# remove the 10th mode from the PCA
+wns_crop = np.delete(wns, [10], axis=1)
+
+# PCA on the reduced dataset
+U, s, V = np.linalg.svd(wns_crop, full_matrices=0)
+PCS = U @ np.diag(s)
+
+# Plotting the first 2 principal components
+ll = ["Baseline", "$M_a=256$", "$M_a=620$", "$M_a=898$"]
+plt.figure(figsize=(8, 5))
+for d in [0, 1, 2, 3]:
+    ix = [l["dmg"] == d for l in labs]
+    ss = [20 * v["amp"] for i, v in zip(ix, labs) if i]
+    plt.scatter(PCS[ix, 0], PCS[ix, 1], color=f"C{d}", label=ll[d], s=ss)
+plt.legend(
+    bbox_to_anchor=(0, 1.1, 1, 0),
+    loc="upper left",
+    ncols=4,
+    mode="expand",
+    borderaxespad=0,
+    frameon=False,
+)
+plt.xlabel("PC1")
+plt.ylabel("PC2")
+plt.tight_layout()
+
+```
+
+## Using This Information
+
+```{python}
+#| echo: false
+
+from boaf.base_distributions.multivariate import NIW
+
+def plot_gaussian(ax, mu, Sig):
+    val, vec = np.linalg.eig(Sig)
+    alph = np.arctan(vec[1,0]/vec[0,0])
+
+    theta = np.linspace(0,2*np.pi,100)[None,:]
+    s = 2
+    cx = s*val[0]**0.5*np.cos(theta)
+    cy = s*val[1]**0.5*np.sin(theta)
+    cr = np.array([[np.cos(alph), -np.sin(alph)],[np.sin(alph), np.cos(alph)]]).dot(np.vstack((cx,cy)))
+    c = cr + mu.T
+    ax.plot(c[0,:],c[1,:])
+
+```
+
+
+
+```{python}
+#| fig-align: center
+
+X = PCS[:,:2]
+
+clusters = [NIW(
+    mu = np.array([-337.6,-0.5])[None,:],
+    sigma = np.eye(2),
+    nu = 2,
+    kappa = 1
+
+)]
+clusters[0].add_data(X[:50,:2])
+
+mu, Sig = clusters[0].map_estimates()
+
+plt.figure()
+ax = plt.gca()
+ax.scatter(PCS[:,0],PCS[:,1], c=-clusters[0].logpredpdf(PCS[:,:2]))
+plot_gaussian(ax, mu, Sig)
+
+```
